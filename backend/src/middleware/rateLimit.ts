@@ -1,24 +1,14 @@
 import { NextFunction, Request, Response } from "express";
-import rateLimit from "express-rate-limit";
-import { config } from "../shared/config";
+
+// For the public demo we disable all rate limiting to avoid
+// "Too many requests" errors for users behind shared IPs (e.g. offices, cafes, VPNs).
+// If you want protection later, reintroduce express-rate-limit with a higher threshold.
 
 function passThrough(_req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-export const apiRateLimiter =
-  config.env === "production"
-    ? rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 500,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: { error: "Too many requests, please try again later." },
-      })
-    : passThrough;
-
-// Auth rate limiting is disabled to avoid blocking demo users behind shared IPs.
-// If you want to enable it later, reintroduce a limiter similar to apiRateLimiter.
+export const apiRateLimiter = passThrough;
 export const authRateLimiter = passThrough;
 
 
