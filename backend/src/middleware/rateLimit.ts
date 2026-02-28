@@ -17,15 +17,8 @@ export const apiRateLimiter =
       })
     : passThrough;
 
-export const authRateLimiter =
-  config.env === "production"
-    ? rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 50,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: { error: "Too many login attempts, please try again later." },
-      })
-    : passThrough;
+// Auth rate limiting is disabled to avoid blocking demo users behind shared IPs.
+// If you want to enable it later, reintroduce a limiter similar to apiRateLimiter.
+export const authRateLimiter = passThrough;
 
 
