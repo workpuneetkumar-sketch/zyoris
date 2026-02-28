@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: zyoris
+      POSTGRES_PASSWORD: zyoris
+      POSTGRES_DB: zyoris
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DATABASE_URL: postgresql://zyoris:zyoris@db:5432/zyoris
+      JWT_SECRET: change-me-in-prod
+      WEBHOOK_SECRET: change-me-in-prod
+      PORT: 4000
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: http://backend:4000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
+

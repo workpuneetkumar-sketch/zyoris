@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY backend/package.json backend/tsconfig.json backend/prisma ./backend/
+COPY backend/src ./backend/src
+
+WORKDIR /app/backend
+
+RUN npm install && npm run prisma:generate && npm run build
+
+EXPOSE 4000
+
+CMD ["node", "dist/app.js"]
+

@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/tsconfig.json frontend/next.config.mjs frontend/next-env.d.ts ./frontend/
+COPY frontend/app ./frontend/app
+COPY frontend/public ./frontend/public 2>/dev/null || true
+COPY frontend/context ./frontend/context
+COPY frontend/components ./frontend/components
+
+WORKDIR /app/frontend
+
+RUN npm install && npm run build
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+

@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role
+  designation   String?
+  companyName   String?
+  companyAbout  String?
+  businessType  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  CEO
+  CFO
+  SALES_HEAD
+  OPERATIONS_HEAD
+}
+
+model Deal {
+  id             String   @id @default(cuid())
+  externalId     String?  @unique
+  sourceSystem   String
+  name           String
+  stage          String
+  amount         Float
+  currency       String
+  closeDate      DateTime?
+  owner          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  snapshots      DealSnapshot[]
+}
+
+model DealSnapshot {
+  id        String   @id @default(cuid())
+  deal      Deal     @relation(fields: [dealId], references: [id])
+  dealId    String
+  asOfDate  DateTime
+  stage     String
+  amount    Float
+  currency  String
+}
+
+model Revenue {
+  id          String   @id @default(cuid())
+  externalId  String?  @unique
+  sourceSystem String
+  date        DateTime
+  amount      Float
+  currency    String
+  segment     String?
+  createdAt   DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  externalId  String?  @unique
+  sourceSystem String
+  date        DateTime
+  amount      Float
+  currency    String
+  category    String?
+  createdAt   DateTime @default(now())
+}
+
+model MarketingSpend {
+  id          String   @id @default(cuid())
+  externalId  String?  @unique
+  sourceSystem String
+  date        DateTime
+  channel     String
+  campaign    String?
+  amount      Float
+  currency    String
+  createdAt   DateTime @default(now())
+}
+
+model Inventory {
+  id           String              @id @default(cuid())
+  externalId   String?             @unique
+  sourceSystem String
+  sku          String
+  name         String
+  quantity     Int
+  safetyStock  Int
+  unitCost     Float
+  currency     String
+  createdAt    DateTime            @default(now())
+  snapshots    InventorySnapshot[]
+}
+
+model InventorySnapshot {
+  id         String   @id @default(cuid())
+  inventory  Inventory @relation(fields: [inventoryId], references: [id])
+  inventoryId String
+  asOfDate   DateTime
+  quantity   Int
+}
+
+model ForecastSnapshot {
+  id           String   @id @default(cuid())
+  metric       String
+  horizonDays  Int
+  asOfDate     DateTime
+  forecastJson Json
+}
+
+model Recommendation {
+  id             String   @id @default(cuid())
+  type           String
+  title          String
+  description    String
+  confidence     Float
+  financialImpact Float
+  justification  String
+  createdAt      DateTime @default(now())
+  metadata       Json?
+}
