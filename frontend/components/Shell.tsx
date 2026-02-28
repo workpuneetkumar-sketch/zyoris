@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/sales", label: "Sales", roles: ["ADMIN", "SALES_HEAD"] },
   { href: "/dashboard/operations", label: "Operations", roles: ["ADMIN", "OPERATIONS_HEAD"] },
   { href: "/profile", label: "My profile", roles: ["ADMIN", "CEO", "CFO", "SALES_HEAD", "OPERATIONS_HEAD"] }
-] as const;
+] ;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
