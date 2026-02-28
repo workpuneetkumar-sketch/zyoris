@@ -68,12 +68,13 @@ ingestionRouter.post("/webhook/crm", async (req, res) => {
 
 // CSV / Excel upload endpoint
 ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) {
+  const anyReq = req as any;
+  if (!anyReq.file) {
     return res.status(400).json({ error: "Missing file" });
   }
 
   try {
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const workbook = XLSX.read(anyReq.file.buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
