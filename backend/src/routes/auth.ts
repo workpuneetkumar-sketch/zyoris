@@ -16,7 +16,7 @@ const registerSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(["ADMIN", "CEO", "CFO", "SALES_HEAD", "OPERATIONS_HEAD", "USER"]),
+  role: z.enum(["ADMIN", "CEO", "CFO", "SALES_HEAD", "OPERATIONS_HEAD", "USER"]).optional().default("USER"),
   designation: z.string().optional(),
   companyName: z.string().optional(),
   companyAbout: z.string().optional(),
@@ -63,7 +63,8 @@ authRouter.post("/register", async (req, res, next) => {
     if (existing) {
       return res.status(409).json({ error: "User with this email already exists" });
     }
-    const roleName = parsed.role;
+
+    const roleName = parsed.role ?? "USER";
     const roleRecord = await prisma.role.findUnique({ where: { name: roleName } });
     if (!roleRecord) {
       return res.status(500).json({ error: "Role not found" });
