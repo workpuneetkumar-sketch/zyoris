@@ -16,6 +16,7 @@ const registerSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
+  role: z.enum(["ADMIN", "CEO", "CFO", "SALES_HEAD", "OPERATIONS_HEAD", "USER"]),
   designation: z.string().optional(),
   companyName: z.string().optional(),
   companyAbout: z.string().optional(),
@@ -26,7 +27,10 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ 
+      where: { email },
+      include: { role: true }
+    });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
@@ -36,14 +40,14 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = signToken({ userId: user.id, role: user.role });
+    const token = signToken({ userId: user.id, role: user.role.name });
     return res.json({
       token,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role.name
       },
     });
   } catch (err) {
@@ -59,14 +63,11 @@ authRouter.post("/register", async (req, res, next) => {
     if (existing) {
       return res.status(409).json({ error: "User with this email already exists" });
     }
-
-    const lowerDesignation = (parsed.designation ?? "").toLowerCase();
-    let role: "ADMIN" | "CEO" | "CFO" | "SALES_HEAD" | "OPERATIONS_HEAD" = "ADMIN";
-    if (lowerDesignation.includes("ceo") || lowerDesignation.includes("founder")) role = "CEO";
-    else if (lowerDesignation.includes("cfo") || lowerDesignation.includes("finance")) role = "CFO";
-    else if (lowerDesignation.includes("sales")) role = "SALES_HEAD";
-    else if (lowerDesignation.includes("ops") || lowerDesignation.includes("operation"))
-      role = "OPERATIONS_HEAD";
+    const roleName = parsed.role;
+    const roleRecord = await prisma.role.findUnique({ where: { name: roleName } });
+    if (!roleRecord) {
+      return res.status(500).json({ error: "Role not found" });
+    }
 
     const hash = await bcrypt.hash(parsed.password, 10);
 
@@ -75,7 +76,7 @@ authRouter.post("/register", async (req, res, next) => {
         email: parsed.email,
         name: parsed.name,
         password: hash,
-        role,
+        roleId: roleRecord.id,
         designation: parsed.designation ?? null,
         companyName: parsed.companyName ?? null,
         companyAbout: parsed.companyAbout ?? null,
@@ -83,14 +84,14 @@ authRouter.post("/register", async (req, res, next) => {
       },
     });
 
-    const token = signToken({ userId: user.id, role: user.role });
+    const token = signToken({ userId: user.id, role: roleName });
     return res.status(201).json({
       token,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: roleName,
       },
     });
   } catch (err) {
@@ -103,7 +104,10 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const user = await prisma.user.findUnique({ 
+      where: { id: req.user.userId },
+      include: { role: true }
+    });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -111,7 +115,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role.name,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     });
@@ -119,4 +123,3 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
     return next(err);
   }
 });
-
