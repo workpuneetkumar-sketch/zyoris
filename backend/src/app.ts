@@ -9,6 +9,7 @@ import { ingestionRouter } from "./routes/ingestion";
 import { analyticsRouter } from "./routes/analytics";
 import { recommendationRouter } from "./routes/recommendations";
 import { dashboardRouter } from "./routes/dashboard";
+import { rolesRouter } from "./routes/roles";
 import { requireAuth } from "./middleware/auth";
 import { auditMiddleware } from "./middleware/audit";
 import { errorHandler } from "./middleware/errorHandler";
@@ -58,6 +59,7 @@ app.use("/ingestion", requireAuth, ingestionRouter);
 app.use("/analytics", requireAuth, analyticsRouter);
 app.use("/recommendations", requireAuth, recommendationRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
+app.use("/roles", rolesRouter);
 
 app.use(errorHandler);
 
