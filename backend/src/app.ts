@@ -14,6 +14,7 @@ import { requireAuth } from "./middleware/auth";
 import { auditMiddleware } from "./middleware/audit";
 import { errorHandler } from "./middleware/errorHandler";
 import { apiRateLimiter } from "./middleware/rateLimit";
+import { chatRouter } from "./routes/chat";
 import { config } from "./shared/config";
 import { httpLogger, logger } from "./shared/logger";
 import { prisma } from "./lib/prisma";
@@ -60,6 +61,7 @@ app.use("/analytics", requireAuth, analyticsRouter);
 app.use("/recommendations", requireAuth, recommendationRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
 app.use("/roles", rolesRouter);
+app.use("/chat", requireAuth, chatRouter);
 
 app.use(errorHandler);
 
