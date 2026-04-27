@@ -13,13 +13,14 @@ export const dashboardRouter = Router();
 dashboardRouter.get(
   "/ceo",
   requireRole(["CEO", "ADMIN"]),
-  async (_req, res) => {
+  async (req, res) => {
+    const organizationId = req.user!.organizationId!;
     const [revenue, deals, marketing, expenses, inventory] = await Promise.all([
-      prisma.revenue.findMany({ orderBy: { date: "asc" } }),
-      prisma.deal.findMany(),
-      prisma.marketingSpend.findMany(),
-      prisma.expense.findMany(),
-      prisma.inventory.findMany(),
+      prisma.revenue.findMany({ where: { organizationId }, orderBy: { date: "asc" } }),
+      prisma.deal.findMany({ where: { organizationId } }),
+      prisma.marketingSpend.findMany({ where: { organizationId } }),
+      prisma.expense.findMany({ where: { organizationId } }),
+      prisma.inventory.findMany({ where: { organizationId } }),
     ]);
 
     const forecast = buildRevenueForecast(revenue, 90);
@@ -44,11 +45,12 @@ dashboardRouter.get(
 dashboardRouter.get(
   "/cfo",
   requireRole(["CFO", "ADMIN"]),
-  async (_req, res) => {
+  async (req, res) => {
+    const organizationId = req.user!.organizationId!;
     const [revenue, marketing, expenses] = await Promise.all([
-      prisma.revenue.findMany(),
-      prisma.marketingSpend.findMany(),
-      prisma.expense.findMany(),
+      prisma.revenue.findMany({ where: { organizationId } }),
+      prisma.marketingSpend.findMany({ where: { organizationId } }),
+      prisma.expense.findMany({ where: { organizationId } }),
     ]);
     const drivers = computeRevenueDrivers(revenue, marketing, expenses);
 
@@ -71,8 +73,9 @@ dashboardRouter.get(
 dashboardRouter.get(
   "/sales",
   requireRole(["SALES_HEAD", "ADMIN"]),
-  async (_req, res) => {
-    const deals = await prisma.deal.findMany();
+  async (req, res) => {
+    const organizationId = req.user!.organizationId!;
+    const deals = await prisma.deal.findMany({ where: { organizationId } });
     const scores = computeConversionScores(deals);
     const avgScore =
       scores.length === 0
@@ -89,10 +92,11 @@ dashboardRouter.get(
 dashboardRouter.get(
   "/operations",
   requireRole(["OPERATIONS_HEAD", "ADMIN"]),
-  async (_req, res) => {
+  async (req, res) => {
+    const organizationId = req.user!.organizationId!;
     const [inventory, revenue] = await Promise.all([
-      prisma.inventory.findMany(),
-      prisma.revenue.findMany(),
+      prisma.inventory.findMany({ where: { organizationId } }),
+      prisma.revenue.findMany({ where: { organizationId } }),
     ]);
     const demand = computeDemandTrends(inventory, revenue);
 

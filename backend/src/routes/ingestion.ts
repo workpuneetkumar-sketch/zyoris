@@ -12,16 +12,17 @@ export const ingestionRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 export type LastUploadResult = UploadAnalysis & { dataSenseReport?: DataSenseReport };
-let lastUploadAnalysis: LastUploadResult | null = null;
+const lastUploadAnalysisByOrganization = new Map<string, LastUploadResult>();
 
 // Trigger full ingestion (e.g., scheduled or manual)
-ingestionRouter.post("/run", async (_req, res) => {
-  const result = await simulateIngestionRun();
+ingestionRouter.post("/run", async (req, res) => {
+  const result = await simulateIngestionRun(req.user!.organizationId!);
   res.json(result);
 });
 
 // Example webhook endpoint for CRM events
 ingestionRouter.post("/webhook/crm", async (req, res) => {
+  const organizationId = req.user!.organizationId!;
   const signature = req.headers["x-zyoris-signature"];
   if (typeof signature !== "string") {
     return res.status(400).json({ error: "Missing signature" });
@@ -44,6 +45,7 @@ ingestionRouter.post("/webhook/crm", async (req, res) => {
   await prisma.deal.upsert({
     where: { externalId: event.externalId },
     create: {
+      organizationId,
       externalId: event.externalId,
       sourceSystem: "CRM",
       name: event.name,
@@ -54,6 +56,7 @@ ingestionRouter.post("/webhook/crm", async (req, res) => {
       owner: event.owner,
     },
     update: {
+      organizationId,
       name: event.name,
       stage: event.stage,
       amount: event.amount,
@@ -68,6 +71,7 @@ ingestionRouter.post("/webhook/crm", async (req, res) => {
 
 // CSV / Excel upload endpoint
 ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
+  const organizationId = req.user!.organizationId!;
   const anyReq = req as any;
   if (!anyReq.file) {
     return res.status(400).json({ error: "Missing file" });
@@ -83,7 +87,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
     const analysisResult = analyzeRows(rows, detected);
     const analysis: UploadAnalysis = { ...analysisResult, detectedColumns: detected };
     const dataSenseReport = generateDataSenseReport(rows, analysis);
-    lastUploadAnalysis = { ...analysis, dataSenseReport };
+    lastUploadAnalysisByOrganization.set(organizationId, { ...analysis, dataSenseReport });
 
     let revenueCount = 0;
     let dealCount = 0;
@@ -104,6 +108,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
       if (type === "revenue" || (!type && dateValue && amountValue > 0)) {
         await prisma.revenue.create({
           data: {
+            organizationId,
             sourceSystem: (lowerKeys["source"] as string) ?? "UPLOAD",
             date: new Date(dateValue),
             amount: amountValue,
@@ -118,6 +123,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
       if (type === "expense") {
         await prisma.expense.create({
           data: {
+            organizationId,
             sourceSystem: (lowerKeys["source"] as string) ?? "UPLOAD",
             date: dateValue ? new Date(dateValue) : new Date(),
             amount: amountValue,
@@ -132,6 +138,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
       if (type === "marketing") {
         await prisma.marketingSpend.create({
           data: {
+            organizationId,
             sourceSystem: (lowerKeys["source"] as string) ?? "UPLOAD",
             date: dateValue ? new Date(dateValue) : new Date(),
             channel: (lowerKeys["channel"] as string) ?? "Unknown",
@@ -147,6 +154,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
       if (type === "deal" || lowerKeys["name"] || lowerKeys["stage"]) {
         await prisma.deal.create({
           data: {
+            organizationId,
             externalId: (lowerKeys["externalid"] as string) ?? null,
             sourceSystem: (lowerKeys["source"] as string) ?? "UPLOAD",
             name: (lowerKeys["name"] as string) ?? "Uploaded deal",
@@ -168,7 +176,7 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
       expenseCount,
       marketingCount,
       dealCount,
-      analysis: lastUploadAnalysis,
+      analysis: lastUploadAnalysisByOrganization.get(organizationId),
     });
   } catch (err) {
     return res.status(400).json({ error: "Unable to parse file. Please upload CSV or Excel." });
@@ -176,20 +184,22 @@ ingestionRouter.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 // Last upload analysis (for dashboard charts and summary)
-ingestionRouter.get("/last-analysis", (_req, res) => {
-  if (!lastUploadAnalysis) return res.status(404).json({ error: "No upload analysis yet" });
-  res.json(lastUploadAnalysis);
+ingestionRouter.get("/last-analysis", (req, res) => {
+  const analysis = lastUploadAnalysisByOrganization.get(req.user!.organizationId!);
+  if (!analysis) return res.status(404).json({ error: "No upload analysis yet" });
+  res.json(analysis);
 });
 
 // Simple log query endpoint
-ingestionRouter.get("/summary", async (_req, res) => {
+ingestionRouter.get("/summary", async (req, res) => {
+  const organizationId = req.user!.organizationId!;
   const [dealCount, revenueCount, expenseCount, marketingCount, inventoryCount] =
     await Promise.all([
-      prisma.deal.count(),
-      prisma.revenue.count(),
-      prisma.expense.count(),
-      prisma.marketingSpend.count(),
-      prisma.inventory.count(),
+      prisma.deal.count({ where: { organizationId } }),
+      prisma.revenue.count({ where: { organizationId } }),
+      prisma.expense.count({ where: { organizationId } }),
+      prisma.marketingSpend.count({ where: { organizationId } }),
+      prisma.inventory.count({ where: { organizationId } }),
     ]);
 
   res.json({

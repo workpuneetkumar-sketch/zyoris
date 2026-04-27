@@ -9,11 +9,13 @@ export const chatRouter = Router();
 chatRouter.post("/session", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.userId;
+    const organizationId = req.user!.organizationId!;
     const { title } = req.body as { title?: string };
 
     const session = await prisma.chatSession.create({
       data: {
         userId,
+        organizationId,
         title: title ?? "New Chat",
       },
     });
@@ -27,9 +29,10 @@ chatRouter.post("/session", requireAuth, async (req, res, next) => {
 chatRouter.get("/sessions", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.userId;
+    const organizationId = req.user!.organizationId!;
 
     const sessions = await prisma.chatSession.findMany({
-      where: { userId },
+      where: { userId, organizationId },
       orderBy: { updatedAt: "desc" },
       include: {
         messages: {
@@ -48,10 +51,11 @@ chatRouter.get("/sessions", requireAuth, async (req, res, next) => {
 chatRouter.get("/session/:sessionId", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.userId;
+    const organizationId = req.user!.organizationId!;
     const { sessionId } = req.params;
 
     const session = await prisma.chatSession.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, organizationId },
       include: {
         messages: { orderBy: { createdAt: "asc" } },
       },
@@ -70,6 +74,7 @@ chatRouter.get("/session/:sessionId", requireAuth, async (req, res, next) => {
 chatRouter.post("/message", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.userId;
+    const organizationId = req.user!.organizationId!;
     const { sessionId, message } = req.body as {
       sessionId: string;
       message: string;
@@ -80,7 +85,7 @@ chatRouter.post("/message", requireAuth, async (req, res, next) => {
     }
 
     const session = await prisma.chatSession.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, organizationId },
     });
 
     if (!session) {
@@ -145,10 +150,11 @@ chatRouter.post("/message", requireAuth, async (req, res, next) => {
 chatRouter.delete("/session/:sessionId", requireAuth, async (req, res, next) => {
   try {
     const userId = req.user!.userId;
+    const organizationId = req.user!.organizationId!;
     const { sessionId } = req.params;
 
     const session = await prisma.chatSession.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, organizationId },
     });
 
     if (!session) {

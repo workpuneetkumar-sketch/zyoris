@@ -7,13 +7,69 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  members       OrganizationMembership[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  deals         Deal[]
+  revenues      Revenue[]
+  expenses      Expense[]
+  marketing     MarketingSpend[]
+  inventories   Inventory[]
+  chatSessions  ChatSession[]
+}
+
+model OrganizationMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  roleId         String
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, roleId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String
+  tokenHash      String        @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime      @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, organizationId])
+  @@index([expiresAt])
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @relation(fields: [roleId], references: [id])
-  roleId    String
+  id             String   @id @default(cuid())
+  email          String   @unique
+  password       String
+  name           String
+  role           Role     @relation(fields: [roleId], references: [id])
+  roleId         String
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   designation   String?
   companyName   String?
   companyAbout  String?
@@ -22,15 +78,23 @@ model User {
   updatedAt DateTime @updatedAt
   auditLogs AuditLog[]
   chatSessions ChatSession[]
+  memberships OrganizationMembership[]
+  refreshTokens RefreshToken[]
+
+  @@index([organizationId])
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?
-  action    String
-  metadata  Json?
-  createdAt DateTime @default(now())
+  id             String        @id @default(cuid())
+  user           User?         @relation(fields: [userId], references: [id])
+  userId         String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  action         String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
 }
 
 model Role {
@@ -38,13 +102,16 @@ model Role {
   name        String   @unique
   description String?
   users       User[]
+  memberships OrganizationMembership[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model Deal {
-  id             String   @id @default(cuid())
-  externalId     String?  @unique
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  externalId     String?       @unique
   sourceSystem   String
   name           String
   stage          String
@@ -52,9 +119,12 @@ model Deal {
   currency       String
   closeDate      DateTime?
   owner          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   snapshots      DealSnapshot[]
+
+  @@index([organizationId, stage])
+  @@index([organizationId, createdAt])
 }
 
 model DealSnapshot {
@@ -68,7 +138,9 @@ model DealSnapshot {
 }
 
 model Revenue {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
   externalId  String?  @unique
   sourceSystem String
   date        DateTime
@@ -76,10 +148,14 @@ model Revenue {
   currency    String
   segment     String?
   createdAt   DateTime @default(now())
+
+  @@index([organizationId, date])
 }
 
 model Expense {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
   externalId  String?  @unique
   sourceSystem String
   date        DateTime
@@ -87,10 +163,14 @@ model Expense {
   currency    String
   category    String?
   createdAt   DateTime @default(now())
+
+  @@index([organizationId, date])
 }
 
 model MarketingSpend {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
   externalId  String?  @unique
   sourceSystem String
   date        DateTime
@@ -99,10 +179,14 @@ model MarketingSpend {
   amount      Float
   currency    String
   createdAt   DateTime @default(now())
+
+  @@index([organizationId, date])
 }
 
 model Inventory {
   id           String              @id @default(cuid())
+  organizationId String?
+  organization Organization?       @relation(fields: [organizationId], references: [id])
   externalId   String?             @unique
   sourceSystem String
   sku          String
@@ -113,6 +197,8 @@ model Inventory {
   currency     String
   createdAt    DateTime            @default(now())
   snapshots    InventorySnapshot[]
+
+  @@index([organizationId, createdAt])
 }
 
 model InventorySnapshot {
@@ -144,13 +230,17 @@ model Recommendation {
 }
 
 model ChatSession {
-  id        String        @id @default(cuid())
-  userId    String
-  user      User          @relation(fields: [userId], references: [id])
-  title     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  messages  ChatMessage[]
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  user           User          @relation(fields: [userId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  title          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       ChatMessage[]
+
+  @@index([organizationId, updatedAt])
 }
 
 model ChatMessage {
