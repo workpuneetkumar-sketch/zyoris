@@ -61,7 +61,40 @@ const mockInventory = [
   },
 ];
 
-export async function simulateIngestionRun() {
+async function resolveOrganizationId(inputOrganizationId?: string) {
+  if (inputOrganizationId) {
+    const organization = await prisma.organization.findFirst({
+      where: { id: inputOrganizationId, isActive: true },
+      select: { id: true },
+    });
+
+    return organization?.id ?? null;
+  }
+
+  const organization = await prisma.organization.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+
+  return organization?.id ?? null;
+}
+
+export async function simulateIngestionRun(inputOrganizationId?: string) {
+  const organizationId = await resolveOrganizationId(inputOrganizationId);
+
+  if (!organizationId) {
+    return {
+      skipped: true,
+      reason: "No active organization found for ingestion",
+      dealsCreated: 0,
+      revenueCreated: 0,
+      expensesCreated: 0,
+      marketingCreated: 0,
+      inventoryCreated: 0,
+    };
+  }
+
   let dealsCreated = 0;
   let revenueCreated = 0;
   let expensesCreated = 0;
@@ -75,6 +108,7 @@ export async function simulateIngestionRun() {
     await prisma.deal.upsert({
       where: { externalId: d.externalId },
       create: {
+        organizationId,
         externalId: d.externalId,
         sourceSystem: "CRM",
         name: d.name,
@@ -85,6 +119,7 @@ export async function simulateIngestionRun() {
         owner: d.owner,
       },
       update: {
+        organizationId,
         name: d.name,
         stage: d.stage,
         amount: normalizedAmount,
@@ -102,6 +137,7 @@ export async function simulateIngestionRun() {
     await prisma.revenue.upsert({
       where: { externalId: r.externalId },
       create: {
+        organizationId,
         externalId: r.externalId,
         sourceSystem: r.sourceSystem,
         date,
@@ -110,6 +146,7 @@ export async function simulateIngestionRun() {
         segment: r.segment,
       },
       update: {
+        organizationId,
         date,
         amount: normalizedAmount,
         currency: "USD",
@@ -125,6 +162,7 @@ export async function simulateIngestionRun() {
     await prisma.expense.upsert({
       where: { externalId: e.externalId },
       create: {
+        organizationId,
         externalId: e.externalId,
         sourceSystem: e.sourceSystem,
         date,
@@ -133,6 +171,7 @@ export async function simulateIngestionRun() {
         category: e.category,
       },
       update: {
+        organizationId,
         date,
         amount: normalizedAmount,
         currency: "USD",
@@ -148,6 +187,7 @@ export async function simulateIngestionRun() {
     await prisma.marketingSpend.upsert({
       where: { externalId: m.externalId },
       create: {
+        organizationId,
         externalId: m.externalId,
         sourceSystem: m.sourceSystem,
         date,
@@ -157,6 +197,7 @@ export async function simulateIngestionRun() {
         currency: "USD",
       },
       update: {
+        organizationId,
         date,
         channel: m.channel,
         campaign: m.campaign,
@@ -172,6 +213,7 @@ export async function simulateIngestionRun() {
     await prisma.inventory.upsert({
       where: { externalId: i.externalId },
       create: {
+        organizationId,
         externalId: i.externalId,
         sourceSystem: i.sourceSystem,
         sku: i.sku,
@@ -182,6 +224,7 @@ export async function simulateIngestionRun() {
         currency: "USD",
       },
       update: {
+        organizationId,
         quantity: i.quantity,
         safetyStock: i.safetyStock,
         unitCost,
@@ -192,6 +235,8 @@ export async function simulateIngestionRun() {
   }
 
   return {
+    skipped: false,
+    organizationId,
     dealsCreated,
     revenueCreated,
     expensesCreated,

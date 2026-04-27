@@ -8,6 +8,7 @@ export async function auditMiddleware(
 ) {
   const start = Date.now();
   const userId = req.user?.userId;
+  const organizationId = req.user?.organizationId;
 
   res.on("finish", async () => {
     try {
@@ -15,6 +16,7 @@ export async function auditMiddleware(
       await prisma.auditLog.create({
         data: {
           userId: userId ?? null,
+          organizationId: organizationId ?? null,
           action: `${req.method} ${req.path}`,
           metadata: {
             statusCode: res.statusCode,

@@ -10,11 +10,12 @@ import { analyticsRouter } from "./routes/analytics";
 import { recommendationRouter } from "./routes/recommendations";
 import { dashboardRouter } from "./routes/dashboard";
 import { rolesRouter } from "./routes/roles";
-import { requireAuth } from "./middleware/auth";
+import { requireAuth, requireOrganization } from "./middleware/auth";
 import { auditMiddleware } from "./middleware/audit";
 import { errorHandler } from "./middleware/errorHandler";
 import { apiRateLimiter } from "./middleware/rateLimit";
 import { chatRouter } from "./routes/chat";
+import { organizationsRouter } from "./routes/organizations";
 import { config } from "./shared/config";
 import { httpLogger, logger } from "./shared/logger";
 import { prisma } from "./lib/prisma";
@@ -56,12 +57,13 @@ app.get("/health", async (_req, res, next) => {
 });
 
 app.use("/auth", authRouter);
-app.use("/ingestion", requireAuth, ingestionRouter);
-app.use("/analytics", requireAuth, analyticsRouter);
-app.use("/recommendations", requireAuth, recommendationRouter);
-app.use("/dashboard", requireAuth, dashboardRouter);
+app.use("/organizations", requireAuth, organizationsRouter);
+app.use("/ingestion", requireAuth, requireOrganization, ingestionRouter);
+app.use("/analytics", requireAuth, requireOrganization, analyticsRouter);
+app.use("/recommendations", requireAuth, requireOrganization, recommendationRouter);
+app.use("/dashboard", requireAuth, requireOrganization, dashboardRouter);
 app.use("/roles", rolesRouter);
-app.use("/chat", requireAuth, chatRouter);
+app.use("/chat", requireAuth, requireOrganization, chatRouter);
 
 app.use(errorHandler);
 
