@@ -55,7 +55,7 @@ function buildAuthResponse(user: {
   const { token: refreshToken, hash } = signRefreshToken(payload);
 
   return {
-    accessToken,
+    token: accessToken,
     refreshToken,
     refreshTokenHash: hash,
     user: {
@@ -99,7 +99,7 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
     });
 
     return res.json({
-      accessToken: response.accessToken,
+      token: response.token,
       refreshToken: response.refreshToken,
       user: response.user,
     });
@@ -179,7 +179,7 @@ authRouter.post("/register", async (req, res, next) => {
     });
 
     return res.status(201).json({
-      accessToken: response.accessToken,
+      token: response.token,
       refreshToken: response.refreshToken,
       user: response.user,
     });
@@ -236,7 +236,7 @@ authRouter.post("/refresh", authRateLimiter, async (req, res, next) => {
     ]);
 
     return res.json({
-      accessToken: response.accessToken,
+      token: response.token,
       refreshToken: response.refreshToken,
       user: response.user,
     });
