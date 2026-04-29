@@ -2,31 +2,16 @@ import { Router } from "express";
 import { Prisma, LeadStatus, LeadActivityType } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import {
+  leadAccessWhere,
+  resolveAssignedToId,
+  canChangeLeadPrivilegedFields,
+  canFilterByAssignee,
+} from "../services/permissionService";
+import { Action } from "../types/permissions";
+import { canPerform } from "../services/permissionService";
 
 export const leadsRouter = Router();
-
-const PRIVILEGED_ROLES = new Set([
-  "ADMIN",
-  "CEO",
-  "CFO",
-  "MANAGER",
-  "SALES_HEAD",
-  "OPERATIONS_HEAD",
-]);
-
-function canViewAll(role: string) {
-  return PRIVILEGED_ROLES.has(role);
-}
-
-function leadAccessWhere(user: { userId: string; role: string; organizationId: string }) {
-  if (canViewAll(user.role)) {
-    return { organizationId: user.organizationId } as Prisma.LeadWhereInput;
-  }
-  return {
-    organizationId: user.organizationId,
-    assignedToId: user.userId,
-  } as Prisma.LeadWhereInput;
-}
 
 const createLeadSchema = z.object({
   name: z.string().min(1),
@@ -84,7 +69,11 @@ function buildListWhere(
   if (input.status) where.status = input.status;
   if (input.city) where.city = input.city;
   if (input.source) where.source = input.source;
-  if (input.assignedToId && canViewAll(user.role)) where.assignedToId = input.assignedToId;
+
+  // Only privileged roles may filter by a specific assignee
+  if (input.assignedToId && canFilterByAssignee(user)) {
+    where.assignedToId = input.assignedToId;
+  }
 
   if (input.q) {
     where.OR = [
@@ -123,14 +112,13 @@ async function ensureAssigneeInOrg(organizationId: string, assigneeId: string) {
   return !!assignee;
 }
 
+// POST /leads/create-leads
 leadsRouter.post("/create-leads", async (req, res, next) => {
   try {
     const user = req.user!;
     const organizationId = user.organizationId!;
     const input = createLeadSchema.parse(req.body);
-
-    const requestedAssignee = input.assignedToId ?? null;
-    const finalAssignedToId = canViewAll(user.role) ? requestedAssignee : user.userId;
+    const finalAssignedToId = resolveAssignedToId(user, input.assignedToId);
 
     if (finalAssignedToId) {
       const exists = await ensureAssigneeInOrg(organizationId, finalAssignedToId);
@@ -230,6 +218,7 @@ leadsRouter.post("/create-leads", async (req, res, next) => {
   }
 });
 
+// GET /leads/get-leads
 leadsRouter.get("/get-leads", async (req, res, next) => {
   try {
     const user = req.user!;
@@ -277,6 +266,7 @@ leadsRouter.get("/get-leads", async (req, res, next) => {
   }
 });
 
+// GET /leads/get-lead/:leadId
 leadsRouter.get("/get-lead/:leadId", async (req, res, next) => {
   try {
     const user = req.user!;
@@ -307,6 +297,7 @@ leadsRouter.get("/get-lead/:leadId", async (req, res, next) => {
   }
 });
 
+// PATCH /leads/update-lead/:leadId
 leadsRouter.patch("/update-lead/:leadId", async (req, res, next) => {
   try {
     const user = req.user!;
@@ -321,8 +312,7 @@ leadsRouter.patch("/update-lead/:leadId", async (req, res, next) => {
 
     const current = await prisma.lead.findFirst({ where });
     if (!current) return res.status(404).json({ error: "Lead not found" });
-
-    if (!canViewAll(user.role)) {
+    if (!canChangeLeadPrivilegedFields(user)) {
       if (input.assignedToId !== undefined || input.status !== undefined) {
         return res.status(403).json({ error: "Insufficient role to reassign or change status" });
       }
@@ -425,11 +415,12 @@ leadsRouter.patch("/update-lead/:leadId", async (req, res, next) => {
   }
 });
 
+// POST /leads/assign-lead/:leadId
 leadsRouter.post("/assign-lead/:leadId", async (req, res, next) => {
   try {
     const user = req.user!;
     const organizationId = user.organizationId!;
-    if (!canViewAll(user.role)) {
+    if (!canPerform(user, Action.LEAD_ASSIGN)) {
       return res.status(403).json({ error: "Only manager roles can assign leads" });
     }
 
@@ -474,6 +465,7 @@ leadsRouter.post("/assign-lead/:leadId", async (req, res, next) => {
   }
 });
 
+// POST /leads/add-note/:leadId
 leadsRouter.post("/add-note/:leadId", async (req, res, next) => {
   try {
     const user = req.user!;
